@@ -21,6 +21,8 @@ On Windows, paste this into PowerShell. It needs no Python and no admin rights: 
 powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/OWNER/sikio/main/install.ps1 | iex"
 ```
 
+Or download **Sikio-Setup.exe** from [GitHub Releases](https://github.com/OWNER/sikio/releases) and run it (no admin rights; uninstall from Windows Settings > Apps). It is not code-signed, so Windows shows a SmartScreen **Windows protected your PC** warning: click **More info**, then **Run anyway**. It downloads about 1.5 GB while installing (Python and PyTorch), in a console window that shows the progress.
+
 Run it again to upgrade. To uninstall, run the same line with `uninstall.ps1` in place of `install.ps1`. That removes the Start menu entry, the **Start with Windows** entry and the program, and keeps your settings (in `%APPDATA%\sikio`).
 
 On other platforms: `uv tool install sikio` or `pipx install sikio`. From a copy of this repo:
