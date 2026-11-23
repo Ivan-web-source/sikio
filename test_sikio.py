@@ -1,7 +1,10 @@
 ﻿import asyncio
 import contextlib
+import json
+import os
 import re
 import sys
+import time
 
 import numpy as np
 import pytest
@@ -85,6 +88,65 @@ def test_warning_whenever_confirmation_is_off(monkeypatch, capsys):
     assert "OFF" not in capsys.readouterr().out
     av.Claude("sonnet", confirm=False)
     assert "Spoken confirmation is OFF" in capsys.readouterr().out
+
+
+def fake_projects(monkeypatch, tmp_path):
+    """A Claude config folder with an old and a newer session, and a subagent file that must be ignored."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    work = tmp_path / "work"
+    work.mkdir()
+    project = tmp_path / "claude" / "projects" / "p"
+    (project / "sub").mkdir(parents=True)
+    old, new = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+    (project / f"{old}.jsonl").write_text('{"cwd": "elsewhere"}\n')
+    (project / f"{new}.jsonl").write_text('{"type": "summary"}\nnot json\n' + json.dumps({"cwd": str(work)}) + "\n")
+    (project / "sub" / "33333333-3333-3333-3333-333333333333.jsonl").write_text('{"cwd": "x"}\n')
+    (project / "agent-x.jsonl").write_text('{"cwd": "x"}\n')
+    os.utime(project / f"{old}.jsonl", (1, 1))
+    os.utime(project / "agent-x.jsonl", (time.time() + 99,) * 2)
+    return new, work
+
+
+def test_latest_session_and_its_folder(monkeypatch, tmp_path):
+    new, work = fake_projects(monkeypatch, tmp_path)
+    session, folder, age = av.latest_session()
+    assert (session, folder) == (new, str(work)) and age >= 0
+    assert av.ago(120) == "2 minutes" and av.ago(7200) == "2 hours" and av.ago(86400 * 3) == "3 days"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "none"))
+    assert av.latest_session() is None
+
+
+def test_chat_latest_resumes_a_branch_of_it_and_own_does_not(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(av.shutil, "which", lambda name: name)
+    monkeypatch.setattr(av, "SESSION", tmp_path / "session")
+    new, work = fake_projects(monkeypatch, tmp_path)
+    started = []
+
+    class Client:
+        def __init__(self, options):
+            started.append((options.resume, options.cwd, options.fork_session))
+
+        async def connect(self):
+            pass
+
+    monkeypatch.setattr(av, "ClaudeSDKClient", Client)
+    asyncio.run(av.Claude("sonnet", confirm=True, chat="own").start())
+    assert started == [(None, None, False)]
+    asyncio.run(av.Claude("sonnet", confirm=True, chat="latest").start())
+    assert started[1] == (new, str(work), True)
+    assert f"Continuing your latest Claude Code session in {work}" in capsys.readouterr().out
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "none"))
+    av.SESSION.write_text("mine")
+    asyncio.run(av.Claude("sonnet", confirm=True, chat="latest").start())
+    assert started[2] == ("mine", None, False)  # nothing found: the own chat, with a printed reason
+    assert "No Claude Code session found" in capsys.readouterr().out
+
+
+def test_chat_setting_from_flag_and_file(monkeypatch):
+    assert run_main(monkeypatch, "--text", "hi")["chat"] == "own"
+    av.save_settings({"chat": "latest"})
+    assert run_main(monkeypatch, "--text", "hi")["chat"] == "latest"
+    assert run_main(monkeypatch, "--text", "hi", "--chat", "own")["chat"] == "own"
 
 
 def test_api_key_from_environment_wins(monkeypatch):

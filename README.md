@@ -14,13 +14,22 @@ Sikio is an independent project, not affiliated with or endorsed by Anthropic, O
 
 Needs Python 3.10 to 3.14, a microphone, speakers or headphones, and [Claude Code](https://claude.com/claude-code) installed and logged in (or another brain).
 
-From this folder:
+<!-- Replace OWNER in the URL below once the repo is published (also in install.ps1 and RELEASE.md). -->
+On Windows, paste this into PowerShell. It needs no Python and no admin rights: it installs [uv](https://docs.astral.sh/uv/) if missing, which fetches its own Python, then installs Sikio and adds a **Sikio** entry to the Start menu:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/OWNER/sikio/main/install.ps1 | iex"
+```
+
+Run it again to upgrade. To uninstall, run the same line with `uninstall.ps1` in place of `install.ps1`. That removes the Start menu entry, the **Start with Windows** entry and the program, and keeps your settings (in `%APPDATA%\sikio`).
+
+On other platforms: `uv tool install sikio` or `pipx install sikio`. From a copy of this repo:
 
 ```bash
 pipx install .
 ```
 
-`pip install .` works too. Either one installs the `sikio` command, with PyTorch for the voice: about 1.5 GB in all on Windows, where the PyTorch from PyPI is the CPU-only build. On Linux PyPI gives the much larger CUDA build; `pip install . --extra-index-url https://download.pytorch.org/whl/cpu` installs the CPU-only one, which is all the voice needs.
+`pip install .` works too. All of these install the `sikio` command, with PyTorch for the voice: about 1.5 GB in all on Windows, where the PyTorch from PyPI is the CPU-only build. On Linux PyPI gives the much larger CUDA build; `pip install . --extra-index-url https://download.pytorch.org/whl/cpu` installs the CPU-only one, which is all the voice needs.
 
 On macOS and Linux (untested, see [Help wanted](#help-wanted-untested-platforms-and-services)):
 
@@ -161,6 +170,8 @@ Speech recognition mishears, so before the agent changes anything it says what i
 Sikio keeps one Claude conversation, also after you quit and start it again: it remembers the last chat in `~/.cache/sikio/session` and resumes it. If that chat cannot be resumed it starts a new one and prints a line saying so.
 
 Say "new chat", "new conversation", "start a new chat" or "start over" on its own to forget it and start fresh. It answers "Okay, new chat." without asking Claude.
+
+To pick up where you left off in Claude Code instead, choose "Continue my latest Claude Code session" under Chat in the settings (or start with `--chat latest`). When it starts, Sikio finds your most recently used Claude Code session, works in that session's folder and branches off it, so the original stays as it was, even if it is still open in a terminal. From then on Sikio continues the branch as its own chat, and "new chat" still starts fresh. This is for the Claude brain only; if no session is found, Sikio's own chat is used. A long session is sent along with every request, so each one uses more of your Claude limits than in a short chat; say "new chat" to start small again.
 
 ## Cost
 

@@ -64,7 +64,7 @@ def config_dir():
 
 SETTINGS = config_dir() / "sikio" / "settings.json"
 KEY_SERVICE = "sikio"  # API keys live in the OS credential store, one per web address, never in SETTINGS
-DEFAULTS = {"brain": "claude", "model": None, "confirm": True, "wake": "juniper", "voice": "michael", "stt_model": "base.en"}
+DEFAULTS = {"brain": "claude", "model": None, "confirm": True, "wake": "juniper", "voice": "michael", "stt_model": "base.en", "chat": "own"}
 STYLE = """You are a voice assistant. Every word of your reply is spoken aloud by a text-to-speech voice, so write for the ear, not the eye.
 - Sound like a relaxed, capable person talking. Use contractions and everyday words.
 - When it fits, open with a short natural marker such as "Sure.", "Alright,", "Okay, so" or "Hmm,". Not every time.
@@ -477,10 +477,34 @@ def cost_text(session_id, total):
     return f"${total - (before or 0):.3f} this request, ${total:.3f} this chat"
 
 
+def latest_session():
+    """(session id, working folder or None, seconds since it was last used) of the newest Claude Code session, or None."""
+    root = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "projects"
+    files = [f for f in root.glob("*/*.jsonl") if re.fullmatch(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}", f.stem)]
+    for file in sorted(files, key=lambda f: f.stat().st_mtime, reverse=True)[:1]:
+        folder = None
+        with file.open(encoding="utf-8", errors="ignore") as lines:
+            for line in lines:
+                try:
+                    folder = json.loads(line).get("cwd")
+                except (ValueError, AttributeError):
+                    continue
+                if folder:
+                    break
+        return file.stem, folder, time.time() - file.stat().st_mtime
+    return None
+
+
+def ago(seconds):
+    minutes = max(1, round(seconds / 60))
+    return f"{minutes} minutes" if minutes < 60 else f"{round(minutes / 60)} hours" if minutes < 2880 else f"{round(minutes / 1440)} days"
+
+
 class Claude:
     """Your Claude Code in one long-lived session that is resumed across restarts."""
 
-    def __init__(self, model, confirm):
+    def __init__(self, model, confirm, chat="own"):
+        self.first = chat == "latest"  # until the first result: branch off your latest Claude Code session instead of the own chat
         exe = shutil.which("claude")
         if not exe:
             sys.exit("'claude' is not installed or not on PATH. Install Claude Code and log in, or pick another --brain.")
@@ -511,6 +535,19 @@ class Claude:
 
     async def start(self):
         self.options.resume = SESSION.read_text().strip() if SESSION.exists() else None
+        if self.first:
+            try:
+                found = latest_session()
+            except OSError as error:
+                found = None
+                print(f"Could not look for your Claude Code sessions. ({error})")
+            if found:
+                self.options.resume, self.options.fork_session = found[0], True  # a branch: the original is not written to
+                folder = found[1] if found[1] and Path(found[1]).is_dir() else None
+                self.options.cwd = folder
+                print(f"Continuing your latest Claude Code session in {found[1] or 'its folder'} (last used {ago(found[2])} ago).")
+            else:
+                print("No Claude Code session found, using Sikio's own chat.")
         try:
             self.client = ClaudeSDKClient(self.options)
             await self.client.connect()
@@ -518,7 +555,7 @@ class Claude:
             if not self.options.resume:
                 raise
             print(f"Could not resume the last chat, starting a new one. ({str(error)[-200:]})")
-            self.options.resume = None
+            self.options.resume, self.options.fork_session, self.options.cwd = None, False, None
             self.client = ClaudeSDKClient(self.options)
             await self.client.connect()
 
@@ -531,6 +568,7 @@ class Claude:
         """Yield ("say", sentence) as the reply streams in, and ("confirm", question, future) when an action needs a yes."""
         if is_new_chat(text):
             SESSION.unlink(missing_ok=True)
+            self.first, self.options.fork_session, self.options.cwd = False, False, None
             await self.stop()
             yield "say", "Okay, new chat."
             return
@@ -577,6 +615,7 @@ class Claude:
                     costs = cost_text(message.session_id, message.total_cost_usd or 0)  # before SESSION is overwritten
                     SESSION.parent.mkdir(parents=True, exist_ok=True)
                     SESSION.write_text(message.session_id)
+                    self.first = self.options.fork_session = False  # from here on the branch is the own chat (its folder stays)
                     usage = message.usage or {}  # printed by ask() after the last sentence: the reply streams ahead of the voice
                     self.usage = (f"({', '.join(message.model_usage or {})}: {usage.get('input_tokens')} in, {usage.get('cache_creation_input_tokens')} cache write, "
                                   f"{usage.get('cache_read_input_tokens')} cache read, {usage.get('output_tokens')} out, {costs})")
@@ -866,7 +905,7 @@ async def run(args):
     if sd is None:
         sys.exit(f"No sound: {NO_SOUND}. On Linux install PortAudio first, for example: sudo apt install libportaudio2")
     if args.brain == "claude":
-        brain = Claude(args.model or "sonnet", confirm=args.confirm)
+        brain = Claude(args.model or "sonnet", confirm=args.confirm, chat=args.chat)
     elif args.brain.startswith(("http://", "https://")):
         brain = Chat(args.brain, args.model)
     else:
@@ -1067,6 +1106,7 @@ CLAUDE_MODELS = {"Sonnet: balanced": "sonnet", "Haiku: fastest, uses least": "ha
 VOICES = {"Michael (default)": "michael", **{name.replace("_", " ").title(): name for name in (
     "alba", "anna", "azelma", "bill_boerst", "caro_davy", "charles", "eponine", "eve", "fantine", "george", "jane", "javert",
     "marius", "mary", "paul", "peter_yearsley", "stuart_bell", "vera")}}
+CHATS = {"Sikio's own chat (continues across restarts)": "own", "Continue my latest Claude Code session": "latest"}
 STT_MODELS = {"Fast (English)": "base.en", "More accurate, slower (English)": "small.en", "Other languages": "small"}
 
 
@@ -1106,7 +1146,7 @@ def settings_window():
     fields = {"choice": tk.StringVar(root, choice), "where": tk.StringVar(root, now["brain"] if choice in (WEB, COMMAND) else ""),
               "model": tk.StringVar(root), "confirm": tk.BooleanVar(root, now["confirm"]),
               "wake": tk.StringVar(root, now["wake"]), "voice": tk.StringVar(root, label_of(VOICES, now["voice"] if now["voice"] in VOICES.values() else DEFAULTS["voice"])),
-              "stt_model": tk.StringVar(root, label_of(STT_MODELS, now["stt_model"])), "key": tk.StringVar(root), "clear_key": tk.BooleanVar(root),
+              "stt_model": tk.StringVar(root, label_of(STT_MODELS, now["stt_model"])), "chat": tk.StringVar(root, label_of(CHATS, now["chat"])), "key": tk.StringVar(root), "clear_key": tk.BooleanVar(root),
               "status": tk.StringVar(root), "hint": tk.StringVar(root), "model_hint": tk.StringVar(root), "key_note": tk.StringVar(root)}
     status = fields["status"]
 
@@ -1151,6 +1191,7 @@ def settings_window():
     add("choice", "AI to use", ttk.Combobox(form, textvariable=fields["choice"], values=[*NAMED, WEB, COMMAND], state="readonly", width=52), fields["hint"])
     add("where", "Web address", ttk.Entry(form, textvariable=fields["where"], width=55))
     add("model", "Model", models, fields["model_hint"])
+    add("chat", "Chat", ttk.Combobox(form, textvariable=fields["chat"], values=list(CHATS), state="readonly", width=52))
     add("confirm", "Confirmation", confirm)
     fields["wake_hint"] = tk.StringVar(root, "The name you say to get its attention.")  # kept: a variable nobody refers to is dropped with its text
     add("wake", "Wake word", ttk.Entry(form, textvariable=fields["wake"], width=30), fields["wake_hint"])
@@ -1169,6 +1210,7 @@ def settings_window():
         rows["where"][0].configure(text="Web address" if picked == WEB else "Command")
         show("where", picked in (WEB, COMMAND))
         show("key", what == "web")
+        show("chat", what == "claude")
         model_box.configure(state="disabled" if what == "command" else "normal", values=list(CLAUDE_MODELS) if what == "claude" else [])
         find_button.pack_forget()
         if what == "web":
@@ -1236,7 +1278,8 @@ def settings_window():
             return
         voice, stt = fields["voice"].get().strip(), fields["stt_model"].get().strip()
         values = {"brain": brain, "model": "" if what == "command" else model, "confirm": fields["confirm"].get(),
-                  "wake": fields["wake"].get().strip(), "voice": VOICES.get(voice, voice), "stt_model": STT_MODELS.get(stt, stt)}
+                  "wake": fields["wake"].get().strip(), "voice": VOICES.get(voice, voice), "stt_model": STT_MODELS.get(stt, stt),
+                  "chat": "latest" if what == "claude" and CHATS.get(fields["chat"].get()) == "latest" else ""}  # "own" is the default: not written
         save_settings({k: v for k, v in values.items() if v != ""})  # a blank field means the default
         root.destroy()
 
@@ -1563,6 +1606,7 @@ def main():
     parser.add_argument("--wake", help=f"word that must start a request (default {DEFAULTS['wake']})")
     parser.add_argument("--voice", help=f"voice (default michael): {', '.join(VOICES.values())}")
     parser.add_argument("--stt-model", help='Whisper model (default base.en): "small.en" is more accurate but 3x slower, "small" understands other languages')
+    parser.add_argument("--chat", choices=["own", "latest"], help="claude brain: own (default) continues Sikio's own chat; latest branches off your most recent Claude Code session")
     parser.add_argument("--text", help="skip the microphone: answer this once and exit; confirmations are typed")
     args = parser.parse_args()
     if args.command == "settings":
