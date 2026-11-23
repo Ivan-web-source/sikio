@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sikio"
+version = "0.1.0"
+description = "Talk to the AI command-line tool you already pay for: local speech in and out, your own agent as the brain."
+readme = "README.md"
+authors = [{name = "Albertus Ivan Wijaya"}]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = ["faster-whisper", "pocket-tts>=4.0.1", "sounddevice", "numpy", "claude-agent-sdk", "keyring", "huggingface-hub",
+                "pystray; sys_platform == 'win32'", "pillow; sys_platform == 'win32'"]  # the tray app, tested on Windows only
+
+[project.scripts]
+sikio = "sikio:main"
+
+[project.gui-scripts]
+sikio-tray = "sikio:tray"
+
+[tool.setuptools]
+py-modules = ["sikio"]
