@@ -6,7 +6,7 @@ Needs a PyPI API token (and one for TestPyPI). Never commit it; pass it with `UV
 2. Search by hand for trademarks on "Sikio" (USPTO, EUIPO).
 3. Bump `version` in `pyproject.toml` and the same `AppVersion` in `installer.iss`.
 4. Run the tests: `python -m pytest -q test_sikio.py`
-5. Build: `uv build`
+5. Build: `Remove-Item dist -Recurse -ErrorAction SilentlyContinue; uv build`
 6. Check: `uvx twine check dist/*`
 7. Upload to TestPyPI first: `uv publish --publish-url https://test.pypi.org/legacy/`
 8. Try it: `uv tool install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ sikio`

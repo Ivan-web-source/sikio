@@ -111,7 +111,7 @@ def test_latest_session_and_its_folder(monkeypatch, tmp_path):
     new, work = fake_projects(monkeypatch, tmp_path)
     session, folder, age = av.latest_session()
     assert (session, folder) == (new, str(work)) and age >= 0
-    assert av.ago(120) == "2 minutes" and av.ago(7200) == "2 hours" and av.ago(86400 * 3) == "3 days"
+    assert av.ago(120) == "2 minutes" and av.ago(7200) == "2 hours" and av.ago(86400 * 3) == "3 days" and av.ago(60) == "1 minute" and av.ago(3600) == "1 hour" and av.ago(86400 * 30) == "30 days"
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "none"))
     assert av.latest_session() is None
 

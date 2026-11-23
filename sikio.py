@@ -497,7 +497,8 @@ def latest_session():
 
 def ago(seconds):
     minutes = max(1, round(seconds / 60))
-    return f"{minutes} minutes" if minutes < 60 else f"{round(minutes / 60)} hours" if minutes < 2880 else f"{round(minutes / 1440)} days"
+    n, unit = (minutes, "minute") if minutes < 60 else (round(minutes / 60), "hour") if minutes < 2880 else (round(minutes / 1440), "day")
+    return f"{n} {unit}{'s' * (n != 1)}"
 
 
 class Claude:

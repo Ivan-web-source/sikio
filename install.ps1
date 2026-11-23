@@ -8,8 +8,13 @@ try {
         if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { throw 'uv was installed but not found; open a new terminal and run this again.' }
     }
     $source = if ($env:SIKIO_SOURCE) { $env:SIKIO_SOURCE } else { 'sikio' }
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        $tools = (uv tool dir | Out-String).Trim(); $bin = (uv tool dir --bin | Out-String).Trim()
+        $running = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and ($_.CommandLine -like "*$tools\sikio\*" -or $_.CommandLine -like "*$bin\sikio-tray.exe*" -or $_.CommandLine -like "*$bin\sikio.exe*") })
+        if ($running) { Write-Host 'Stopping the running Sikio ...'; $running | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1 }
+    }
     Write-Host 'Installing Sikio. The first time this downloads about 1.5 GB (Python and PyTorch), so it takes a while.'
-    uv tool install --force --python 3.12 $source
+    uv tool install --force --upgrade --python 3.12 $source
     if ($LASTEXITCODE) { throw 'uv tool install failed.' }
     uv tool update-shell
     $bin = (uv tool dir --bin | Out-String).Trim()
