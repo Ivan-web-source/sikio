@@ -14,14 +14,13 @@ Sikio is an independent project, not affiliated with or endorsed by Anthropic, O
 
 Needs Python 3.10 to 3.14, a microphone, speakers or headphones, and [Claude Code](https://claude.com/claude-code) installed and logged in (or another brain).
 
-<!-- Replace OWNER in the URL below once the repo is published (also in install.ps1 and RELEASE.md). -->
 On Windows, paste this into PowerShell. It needs no Python and no admin rights: it installs [uv](https://docs.astral.sh/uv/) if missing, which fetches its own Python, then installs Sikio and adds a **Sikio** entry to the Start menu:
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/OWNER/sikio/main/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Ivan-web-source/sikio/main/install.ps1 | iex"
 ```
 
-Or download **Sikio-Setup.exe** from [GitHub Releases](https://github.com/OWNER/sikio/releases) and run it (no admin rights; uninstall from Windows Settings > Apps). It is not code-signed, so Windows shows a SmartScreen **Windows protected your PC** warning: click **More info**, then **Run anyway**. It downloads about 1.5 GB while installing (Python and PyTorch), in a console window that shows the progress.
+Or download **Sikio-Setup.exe** from [GitHub Releases](https://github.com/Ivan-web-source/sikio/releases) and run it (no admin rights; uninstall from Windows Settings > Apps). It is not code-signed, so Windows shows a SmartScreen **Windows protected your PC** warning: click **More info**, then **Run anyway**. It downloads about 1.5 GB while installing (Python and PyTorch), in a console window that shows the progress.
 
 Run it again to upgrade. To uninstall, run the same line with `uninstall.ps1` in place of `install.ps1`. That removes the Start menu entry, the **Start with Windows** entry and the program, and keeps your settings (in `%APPDATA%\sikio`).
 

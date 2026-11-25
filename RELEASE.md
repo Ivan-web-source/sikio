@@ -2,7 +2,7 @@
 
 Needs a PyPI API token (and one for TestPyPI). Never commit it; pass it with `UV_PUBLISH_TOKEN`.
 
-1. Replace `OWNER` in `README.md`, `install.ps1` and `uninstall.ps1` with the GitHub user or organisation.
+1. If the repo moves to another account, update `Ivan-web-source` in `README.md`, `install.ps1` and `uninstall.ps1`.
 2. Search by hand for trademarks on "Sikio" (USPTO, EUIPO).
 3. Bump `version` in `pyproject.toml` and the same `AppVersion` in `installer.iss`.
 4. Run the tests: `python -m pytest -q test_sikio.py`
